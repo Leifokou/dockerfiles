@@ -9,10 +9,11 @@ COPY . /var/www/html
 
 RUN curl -sL "https://github.com/invoiceninja/invoiceninja/releases/latest/download/invoiceninja.tar.gz" | \
     tar -xz -C /var/www/html \
-    && ln -s /var/www/html/resources/views/react/index.blade.php /var/www/html/public/index.html \
+    && mkdir -p /var/www/html/public \                            # Ensure public folder exists
+    && ln -sf /var/www/html/resources/views/react/index.blade.php /var/www/html/public/index.html \  # Safer symlink creation
     && php artisan storage:link \
-    # Workaround for application updates
-    && mv /var/www/html/public /tmp/public || true
+    # Workaround for application updates - only move if public exists
+    && if [ -d /var/www/html/public ]; then mv /var/www/html/public /tmp/public; fi || true
 
 # ==================
 # InvoiceNinja image
@@ -75,14 +76,4 @@ COPY supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Setup InvoiceNinja
 COPY --from=prepare-app /var/www/html /var/www/html
-COPY --from=prepare-app /tmp/public /tmp/public
-
-# Add initialization script
-COPY --chmod=0755 scripts/init.sh /usr/local/bin/init.sh
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD pgrep -f "php-fpm: master process"
-
-ENTRYPOINT ["/usr/local/bin/init.sh"]
-CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+COPY --from=prepa
